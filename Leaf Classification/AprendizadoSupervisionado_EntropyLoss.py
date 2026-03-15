@@ -26,6 +26,7 @@ def one_hot(y, num_classes):
     
     return one_hot_matrix
 
+#parametros de treinamento
 num_inputs = 14
 num_output_types = 36
 num_neurons = 36
@@ -33,19 +34,19 @@ learning_rate = 0.045
 epoch = 5000
 
 df = pd.read_csv("leaf.csv", header=None)
-df = df.drop(columns=[1])
 
+#coluna 1 é apenas um id, nao interessa para a classificacao
+df = df.drop(columns=[1])
 df.columns = range(df.shape[1])
 
 atributos = df.iloc[:, 1:]
 
-#normalizacao
+#normalizacao dos dados
 df.iloc[:, 1:] = (atributos - atributos.min()) / (atributos.max() - atributos.min())
 
 df = df.sample(frac=1).reset_index(drop=True)
 
-#df = df.sample(frac=1, random_state=42).reset_index(drop=True) # caso queri afixar a aleatoriedade
-
+#separacao de dados de treino e teste
 tabelaParaTestesReal = df.groupby(0).head(3)
 tabelaParaTreinamentoReal = df.drop(tabelaParaTestesReal.index)
 
@@ -53,20 +54,22 @@ Y_Test = tabelaParaTestesReal.iloc[:, 0]
 Y_Test_Oh = one_hot(Y_Test, 36)
 
 X_Test = tabelaParaTestesReal.iloc[:, 1:]
+#adicao do bias
 X_Test[num_inputs+1] = 1
 
 Y_Train = tabelaParaTreinamentoReal.iloc[:, 0]
 Y_Train_Oh = one_hot(Y_Train, 36)
 
 X_Train = tabelaParaTreinamentoReal.iloc[:, 1:]
+#adicao do bias
 X_Train[num_inputs+1] = 1
 
 # +1 por causa do bias
 W = np.random.rand(num_neurons, num_inputs + 1) - 0.5
 
-
 erros = []
 
+#treinamento
 for k in range(epoch):
     print("epoca ", k)
     erro_epoca = 0
@@ -79,14 +82,11 @@ for k in range(epoch):
         
         ativacao = softmax(z)
         
+        #calculo do erro e atualizacao dos pesos
         diferenca = ativacao - Y_Train_Oh[i]
-        
         mse = np.mean(diferenca**2)
-        
         erro_epoca += mse
-        
         deltaW = - learning_rate * np.outer(diferenca, x)
-        
         W += deltaW
         
         
@@ -95,24 +95,17 @@ for k in range(epoch):
     erros.append(erro_epoca)
     
     print(f"epoca {k} erro {erro_epoca}")
-
-plt.plot(erros)
-plt.xlabel("Epoca")
-plt.ylabel("Erro (MSE)")
-plt.title("Evolucao do erro durante o treinamento")
-
-plt.show()
-
             
 predictions = []
 
+#testes
 for i in range(len(X_Test)):
     
     x = X_Test.iloc[i]
     
     z = np.dot(x, W.T)
 
-    pred = sigmoid(z)
+    pred = softmax(z)
     
     predictions.append(pred)
     
@@ -128,6 +121,7 @@ conf_matrix = np.zeros((36,36), dtype=int)
 
 acerto = 0
 
+#calculo da matriz de confusao
 for i in range(len(one_hot_pred)):
     real = np.argmax(Y_Test_Oh[i])
     pred = np.argmax(one_hot_pred[i])
@@ -136,13 +130,41 @@ for i in range(len(one_hot_pred)):
         acerto += 1
 
     conf_matrix[real, pred] += 1
+
+plt.figure(figsize=(15, 6))
+
+#plot do grafico do erro
+plt.subplot(1, 2, 1)
+plt.plot(erros)
+plt.xlabel("Época")
+plt.ylabel("Erro (MSE)")
+plt.title("Evolução do Erro")
+
+#plot da matriz de confusão
+plt.subplot(1, 2, 2)
+im = plt.imshow(conf_matrix, interpolation='nearest', cmap=plt.cm.Greens)
+plt.title("Matriz de Confusão")
+plt.colorbar(im)
+tick_marks = np.arange(num_output_types)
+plt.xticks(tick_marks, tick_marks, rotation=90, fontsize=7)
+plt.yticks(tick_marks, tick_marks, fontsize=7)
+
+for i in range(num_output_types):
+    for j in range(num_output_types):
+        if conf_matrix[i, j] > 0:
+            plt.text(j, i, str(conf_matrix[i, j]), horizontalalignment="center", color="black", fontsize=6)
+
+plt.tight_layout()
+plt.show()
     
+#calculo da acuracia global
 porcentagem = (acerto / len(X_Test)) * 100
 print(f"Acuracia: {acerto}/{len(X_Test)}")
 print(f"Porcentagem: {porcentagem:.2f}%")
 
 num_classes = conf_matrix.shape[0]
 
+#calculo das metricas para cada classe
 for k in range(num_classes):
 
     TP = conf_matrix[k,k]
